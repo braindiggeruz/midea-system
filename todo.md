@@ -50,3 +50,14 @@
 - [x] Перенести все обязательные сервисные зависимости админки на инфраструктуру Railway без опоры на Manus runtime
 - [x] Проверить и устранить любые редиректы, env и client-side ссылки на manus.im
 - [ ] Добиться постоянной standalone-работы админки на Railway и на custom domain без зависимости от Manus
+- [ ] Сохранить и использовать переданные Railway project token и account API token для автоматизации внешнего деплоя
+- [ ] Проверить через Railway API текущий проект, сервисы и окружения production для админки и API
+- [ ] Синхронизировать постоянный Railway deploy админки с существующим сервисом `midea-digital-contour-admin`
+- [ ] Проверить и закрепить домен `admin.midea-alba.uz` за standalone-админкой на Railway
+- [x] Проверить через Railway API фактический production deployment сервиса `midea-digital-contour-admin`
+- [x] Подтвердить через Railway API состав service domains и custom domains для `midea-digital-contour-admin`
+- [x] Проверить статус custom domain `admin.midea-alba.uz`, включая DNS и certificate status
+- [ ] При необходимости устранить оставшиеся runtime-конфликты standalone auth и OAuth-следов перед финальной выдачей
+- [x] Выполнить API-перепривязку custom domain `admin.midea-alba.uz` в Railway и повторно проверить DNS, certificate status и HTTPS-ответ custom domain
+- [x] Обновить DNS-запись `admin.midea-alba.uz` на новый Railway target `h7tq7iiv.up.railway.app`
+- [ ] Повторно проверить Railway custom domain status для `admin.midea-alba.uz` после распространения DNS и подтвердить выпуск сертификата
