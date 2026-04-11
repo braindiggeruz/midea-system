@@ -11,6 +11,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { notifyOwner } from "./_core/notification";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { buildLeadStageOwnerNotification } from "./ownerNotifications";
 import {
   addLeadNote,
   createBroadcastDraft,
@@ -133,10 +134,7 @@ const notifyLeadStageChange = async (input: {
   stage: string;
   statusReason?: string | null;
 }) => {
-  await notifyOwner({
-    title: `Lead #${input.leadId} moved to ${input.stage}`,
-    content: `Пользователь ${input.actorName} перевёл лида ${input.leadName ?? `#${input.leadId}`} в стадию ${input.stage}${input.statusReason ? `. Причина: ${input.statusReason}` : ""}.`,
-  }).catch(() => false);
+  await notifyOwner(buildLeadStageOwnerNotification(input)).catch(() => false);
 };
 
 const toLeadIdentity = (lead: unknown) =>

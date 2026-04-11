@@ -4,6 +4,11 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import {
+  handleAmoCrmWebhook,
+  isAmoCrmWebhookAuthorized,
+  isValidAmoWebhookPayload,
+} from "../amocrm";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -35,6 +40,37 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  app.post("/api/integrations/amocrm/webhook", async (req, res) => {
+    try {
+      const payload = (req.body ?? {}) as Record<string, unknown>;
+
+      if (!isAmoCrmWebhookAuthorized(req.header("x-amocrm-secret"))) {
+        res.status(401).json({ success: false, status: "unauthorized" });
+        return;
+      }
+
+      if (!isValidAmoWebhookPayload(payload)) {
+        res.status(400).json({
+          success: false,
+          status: "invalid_payload",
+          message: "amoCRM webhook payload is empty or does not contain a recognizable event/lead identifier",
+        });
+        return;
+      }
+
+      const result = await handleAmoCrmWebhook(payload);
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("[amoCRM webhook] Failed to process payload", error);
+      res.status(500).json({
+        success: false,
+        status: "error",
+        message: error instanceof Error ? error.message : "Unexpected amoCRM webhook error",
+      });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

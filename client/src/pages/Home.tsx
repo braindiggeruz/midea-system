@@ -371,7 +371,9 @@ function HomeContent() {
   const sendLeadPingMutation = trpc.telegram.sendLeadPing.useMutation();
   const sendTestMessageMutation = trpc.telegram.sendTestMessage.useMutation();
   const createBroadcastMutation = trpc.broadcasts.createDraft.useMutation();
+  const dispatchBroadcastMutation = trpc.broadcasts.dispatchNow.useMutation();
   const automationStatusMutation = trpc.automations.setStatus.useMutation();
+  const executeAutomationMutation = trpc.automations.executeNow.useMutation();
   const createReferralMutation = trpc.referrals.create.useMutation();
   const saveSpendEntryMutation = trpc.dashboard.saveSpendEntry.useMutation();
 
@@ -383,7 +385,9 @@ function HomeContent() {
     sendLeadPingMutation.isPending ||
     sendTestMessageMutation.isPending ||
     createBroadcastMutation.isPending ||
+    dispatchBroadcastMutation.isPending ||
     automationStatusMutation.isPending ||
+    executeAutomationMutation.isPending ||
     createReferralMutation.isPending ||
     saveSpendEntryMutation.isPending;
 
@@ -580,6 +584,25 @@ function HomeContent() {
     }
   };
 
+  const handleExecuteAutomation = async (ruleId?: number) => {
+    try {
+      const result = await executeAutomationMutation.mutateAsync(
+        ruleId ? { ruleId } : undefined
+      );
+      await Promise.all([
+        utils.automations.list.invalidate(),
+        utils.dashboard.overview.invalidate(),
+        utils.dashboard.automationsHealth.invalidate(),
+        utils.leads.detail.invalidate(),
+      ]);
+      toast.success(
+        `Automation run complete: ${result.sentCount} sent, ${result.failedCount} failed`
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to execute automation");
+    }
+  };
+
   const handleCreateReferral = async () => {
     if (!selectedLeadId || referralCode.trim().length < 4) return;
     try {
@@ -594,6 +617,21 @@ function HomeContent() {
       setReferralCode("");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create referral invite");
+    }
+  };
+
+  const handleDispatchBroadcast = async (broadcastId: number) => {
+    try {
+      const result = await dispatchBroadcastMutation.mutateAsync({ broadcastId });
+      await Promise.all([
+        utils.broadcasts.list.invalidate(),
+        utils.dashboard.overview.invalidate(),
+      ]);
+      toast.success(
+        `Broadcast dispatched: ${result.sentCount}/${result.totalTargets} delivered`
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to dispatch broadcast");
     }
   };
 
@@ -1535,7 +1573,18 @@ function HomeContent() {
 
           <SectionCard
             title="Automation rules"
-            description="Переключение статусов и быстрый просмотр trigger logic для owner-команды."
+            description="Переключение статусов, ручной запуск и быстрый просмотр trigger logic для owner-команды."
+            actions={
+              <Button
+                variant="outline"
+                className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
+                onClick={() => handleExecuteAutomation()}
+                disabled={executeAutomationMutation.isPending}
+              >
+                {executeAutomationMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Run all active rules
+              </Button>
+            }
           >
             <div className="space-y-4">
               {(automationsQuery.data ?? []).map((rule) => (
@@ -1563,7 +1612,15 @@ function HomeContent() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 lg:max-w-[300px] lg:justify-end">
+                    <div className="flex flex-wrap gap-2 lg:max-w-[340px] lg:justify-end">
+                      <Button
+                        variant="outline"
+                        className="rounded-full border-primary/30 bg-background/45 text-primary hover:bg-primary/10"
+                        onClick={() => handleExecuteAutomation(rule.id)}
+                        disabled={executeAutomationMutation.isPending}
+                      >
+                        Run now
+                      </Button>
                       {automationStatusOptions.map((status) => (
                         <button
                           key={status}
@@ -1644,7 +1701,7 @@ function HomeContent() {
 
           <SectionCard
             title="Broadcast queue"
-            description="Последние драфты и scheduled campaigns по Telegram сегментам."
+            description="Последние драфты и scheduled campaigns по Telegram сегментам с ручным safe-mode запуском."
           >
             <div className="space-y-4">
               {(broadcastsQuery.data ?? []).map((item) => (
@@ -1661,6 +1718,14 @@ function HomeContent() {
                       <p>Segment: {formatLabel(item.segment ?? "all")}</p>
                       <p>Scheduled: {formatDateTime(item.scheduledAt)}</p>
                       <p>CTA: {item.ctaLabel || "—"}</p>
+                      <Button
+                        variant="outline"
+                        className="border-primary/30 bg-background/45 text-primary hover:bg-primary/10"
+                        onClick={() => handleDispatchBroadcast(item.id)}
+                        disabled={dispatchBroadcastMutation.isPending || item.status === "sent"}
+                      >
+                        Dispatch now
+                      </Button>
                     </div>
                   </div>
                 </div>
