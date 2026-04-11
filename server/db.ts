@@ -1306,6 +1306,111 @@ export async function createReferralInvite(payload: InsertReferralInvite) {
   return latest[0] ?? null;
 }
 
+export async function updateReferralInviteStatus(input: {
+  referralId: number;
+  status: NonNullable<InsertReferralInvite["status"]>;
+  invitedLeadId?: number | null;
+  actorUserId?: number | null;
+}) {
+  const db = await getDb();
+  const now = new Date();
+
+  if (!db) {
+    return {
+      id: input.referralId,
+      leadId: 0,
+      code: `REF-${input.referralId}`,
+      invitedLeadId: input.invitedLeadId ?? null,
+      status: input.status,
+      rewardLabel: "Referral reward",
+      rewardValueUsd: "25.00",
+      qualifiedAt: input.status === "qualified" || input.status === "rewarded" ? now : null,
+      rewardedAt: input.status === "rewarded" ? now : null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  const current = await db.select().from(referralInvites).where(eq(referralInvites.id, input.referralId)).limit(1);
+  const referral = current[0];
+  if (!referral) {
+    throw new Error("Referral invite not found.");
+  }
+
+  const qualifiedAt =
+    input.status === "qualified" || input.status === "rewarded"
+      ? referral.qualifiedAt ?? now
+      : referral.qualifiedAt;
+  const rewardedAt = input.status === "rewarded" ? referral.rewardedAt ?? now : referral.rewardedAt;
+
+  await db
+    .update(referralInvites)
+    .set({
+      status: input.status,
+      invitedLeadId: input.invitedLeadId ?? referral.invitedLeadId ?? null,
+      qualifiedAt,
+      rewardedAt,
+      updatedAt: now,
+    })
+    .where(eq(referralInvites.id, input.referralId));
+
+  await createLeadEvent({
+    leadId: referral.leadId,
+    eventType: "system",
+    title: `Referral ${referral.code} updated to ${input.status}`,
+    description: "Referral status changed from admin panel.",
+    actorType: "manager",
+    actorUserId: input.actorUserId ?? null,
+    payloadJson: JSON.stringify({
+      referralId: referral.id,
+      referralCode: referral.code,
+      previousStatus: referral.status,
+      nextStatus: input.status,
+      invitedLeadId: input.invitedLeadId ?? referral.invitedLeadId ?? null,
+    }),
+  });
+
+  const updated = await db.select().from(referralInvites).where(eq(referralInvites.id, input.referralId)).limit(1);
+  return updated[0] ?? null;
+}
+
+export async function getReferralSummary() {
+  const db = await getDb();
+  if (!db) {
+    return {
+      total: 6,
+      pending: 3,
+      qualified: 2,
+      rewarded: 1,
+      expired: 0,
+      openRewardUsd: 50,
+      rewardedUsd: 25,
+    };
+  }
+
+  const [row] = await db
+    .select({
+      total: sql<number>`count(*)`,
+      pending: sql<number>`sum(case when ${referralInvites.status} = 'pending' then 1 else 0 end)`,
+      qualified: sql<number>`sum(case when ${referralInvites.status} = 'qualified' then 1 else 0 end)`,
+      rewarded: sql<number>`sum(case when ${referralInvites.status} = 'rewarded' then 1 else 0 end)`,
+      expired: sql<number>`sum(case when ${referralInvites.status} = 'expired' then 1 else 0 end)`,
+      openRewardUsd: sql<number>`sum(case when ${referralInvites.status} = 'qualified' then coalesce(${referralInvites.rewardValueUsd}, 0) else 0 end)`,
+      rewardedUsd: sql<number>`sum(case when ${referralInvites.status} = 'rewarded' then coalesce(${referralInvites.rewardValueUsd}, 0) else 0 end)`,
+    })
+    .from(referralInvites);
+
+  return {
+    total: toNumber(row?.total),
+    pending: toNumber(row?.pending),
+    qualified: toNumber(row?.qualified),
+    rewarded: toNumber(row?.rewarded),
+    expired: toNumber(row?.expired),
+    openRewardUsd: toNumber(row?.openRewardUsd),
+    rewardedUsd: toNumber(row?.rewardedUsd),
+  };
+}
+
 export async function getAutomationRunMetrics() {
   const db = await getDb();
   if (!db) {

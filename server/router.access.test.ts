@@ -51,6 +51,15 @@ describe("router access control", () => {
     ).rejects.toMatchObject({
       message: NOT_ADMIN_ERR_MSG,
     });
+
+    await expect(
+      caller.referrals.updateStatus({
+        referralId: 1,
+        status: "qualified",
+      }),
+    ).rejects.toMatchObject({
+      message: NOT_ADMIN_ERR_MSG,
+    });
   });
 
   it("allows admins to reach admin-only validation layer", async () => {
@@ -59,6 +68,15 @@ describe("router access control", () => {
     await expect(
       caller.broadcasts.dispatchNow({
         broadcastId: 0,
+      }),
+    ).rejects.not.toMatchObject({
+      message: NOT_ADMIN_ERR_MSG,
+    });
+
+    await expect(
+      caller.referrals.updateStatus({
+        referralId: 0,
+        status: "qualified",
       }),
     ).rejects.not.toMatchObject({
       message: NOT_ADMIN_ERR_MSG,

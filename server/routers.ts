@@ -5,6 +5,7 @@ import {
   leadSegments,
   leadStages,
   leadTemperatures,
+  referralStatuses,
   taskPriorities,
 } from "../drizzle/schema";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -15,6 +16,7 @@ import { buildLeadStageOwnerNotification } from "./ownerNotifications";
 import {
   addLeadNote,
   createBroadcastDraft,
+  createLeadEvent,
   createLeadTask,
   dispatchBroadcastNow,
   executeAutomationRunsNow,
@@ -26,6 +28,7 @@ import {
   getLeadDetail,
   getLeadFunnelAnalytics,
   getLeadPipelineSummary,
+  getReferralSummary,
   listAdSpendEntries,
   listAutomationRules,
   listBroadcasts,
@@ -35,6 +38,7 @@ import {
   updateAutomationRuleStatus,
   updateLeadStage,
   updateLeadTelegramIdentity,
+  updateReferralInviteStatus,
   upsertAdSpendEntry,
 } from "./db";
 import { getTelegramBotProfile, sendTelegramMessage } from "./telegram";
@@ -103,6 +107,12 @@ const referralInput = z.object({
   code: z.string().trim().min(4).max(64),
   rewardLabel: z.string().trim().max(255).optional(),
   rewardValueUsd: z.string().trim().max(32).optional(),
+});
+
+const referralStatusInput = z.object({
+  referralId: z.number().int().positive(),
+  status: z.enum(referralStatuses),
+  invitedLeadId: z.number().int().positive().nullable().optional(),
 });
 
 const adSpendEntryInput = z.object({
@@ -347,6 +357,7 @@ export const appRouter = router({
       .query(async ({ input }) => getLeadByTelegramIdentity(input)),
   }),
   referrals: router({
+    summary: protectedProcedure.query(async () => getReferralSummary()),
     create: adminProcedure.input(referralInput).mutation(async ({ input, ctx }) => {
       const referral = await createReferralInvite({
         leadId: input.leadId,
@@ -356,9 +367,39 @@ export const appRouter = router({
         rewardValueUsd: input.rewardValueUsd ?? null,
       });
 
+      await createLeadEvent({
+        leadId: input.leadId,
+        eventType: "referral_created",
+        title: `Referral code created: ${input.code}`,
+        description: input.rewardLabel ? `Reward configured: ${input.rewardLabel}` : "Referral invite created from admin panel.",
+        actorType: "manager",
+        actorUserId: ctx.user.id,
+        payloadJson: JSON.stringify({
+          referralId: referral?.id ?? null,
+          code: input.code,
+          rewardLabel: input.rewardLabel ?? null,
+          rewardValueUsd: input.rewardValueUsd ?? null,
+        }),
+      });
+
       await notifyOwner({
         title: `Referral code created for lead #${input.leadId}`,
         content: `Пользователь ${ctx.user.name ?? ctx.user.openId} создал referral code ${input.code}.`,
+      }).catch(() => false);
+
+      return referral;
+    }),
+    updateStatus: adminProcedure.input(referralStatusInput).mutation(async ({ input, ctx }) => {
+      const referral = await updateReferralInviteStatus({
+        referralId: input.referralId,
+        status: input.status,
+        invitedLeadId: input.invitedLeadId,
+        actorUserId: ctx.user.id,
+      });
+
+      await notifyOwner({
+        title: `Referral status updated: #${input.referralId}`,
+        content: `Пользователь ${ctx.user.name ?? ctx.user.openId} перевёл referral #${input.referralId} в статус ${input.status}.`,
       }).catch(() => false);
 
       return referral;

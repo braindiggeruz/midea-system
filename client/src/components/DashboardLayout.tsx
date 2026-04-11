@@ -36,11 +36,11 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Command Center", path: "/" },
-  { icon: Users, label: "Leads Pipeline", path: "/leads" },
-  { icon: Sparkles, label: "Automation Grid", path: "/automations" },
-  { icon: Megaphone, label: "Broadcast Studio", path: "/broadcasts" },
-  { icon: Bot, label: "Telegram Bridge", path: "/telegram" },
+  { icon: LayoutDashboard, label: "Командный центр", path: "/" },
+  { icon: Users, label: "Воронка лидов", path: "/leads" },
+  { icon: Sparkles, label: "Автоматизации", path: "/automations" },
+  { icon: Megaphone, label: "Рассылки", path: "/broadcasts" },
+  { icon: Bot, label: "Telegram-мост", path: "/telegram" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -77,7 +77,7 @@ export default function DashboardLayout({
             </div>
             <div className="space-y-3">
               <h1 className="text-2xl font-semibold tracking-tight text-card-foreground">
-                Sign in to open the command center
+                Войдите, чтобы открыть админ-панель
               </h1>
               <p className="text-sm text-muted-foreground">
                 Доступ к operational dashboard ограничен авторизованными owner и manager аккаунтами.
@@ -91,7 +91,8 @@ export default function DashboardLayout({
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >
-            Sign in
+              Войти
+
           </Button>
         </div>
       </div>
@@ -245,7 +246,7 @@ function DashboardLayoutContent({
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
+                  <span>Выйти</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -269,7 +270,7 @@ function DashboardLayoutContent({
               <div className="flex items-center gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
+                    {activeMenuItem?.label ?? "Меню"}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     Real-time CRM, automations and Telegram operations

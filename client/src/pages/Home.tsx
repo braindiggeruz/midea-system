@@ -49,35 +49,36 @@ const segmentOptions = ["alba", "welkin", "combo", "consult"] as const;
 const temperatureOptions = ["hot", "warm", "cold", "won", "lost"] as const;
 const automationStatusOptions = ["draft", "active", "paused", "archived"] as const;
 const taskPriorityOptions = ["low", "medium", "high", "critical"] as const;
+const referralStatusOptions = ["pending", "qualified", "rewarded", "expired"] as const;
 
 const sectionMeta = {
   "/": {
-    eyebrow: "Command Center",
+    eyebrow: "Командный центр",
     title: "Midea Digital Contour Admin",
     description:
-      "Единый operational cockpit для лидов, менеджеров, Telegram-касаний и сценариев follow-up.",
+      "Единый операционный центр для лидов, менеджеров, Telegram-касаний и сценариев follow-up.",
   },
   "/leads": {
-    eyebrow: "Leads Pipeline",
-    title: "Pipeline, tasks and deal acceleration",
+    eyebrow: "Воронка лидов",
+    title: "Воронка, задачи и ускорение сделок",
     description:
       "Фильтрация воронки, работа с карточкой лида, ручные касания и реферальные сценарии.",
   },
   "/automations": {
-    eyebrow: "Automation Grid",
-    title: "Automation health and delivery discipline",
+    eyebrow: "Автоматизации",
+    title: "Состояние автоматизаций и дисциплина исполнения",
     description:
       "Контроль статусов automation rules, покрытия Telegram и readiness для owner-команды.",
   },
   "/broadcasts": {
-    eyebrow: "Broadcast Studio",
-    title: "Telegram campaigns and draft orchestration",
+    eyebrow: "Рассылки",
+    title: "Telegram-кампании и управление черновиками",
     description:
       "Подготовка рассылок по сегментам и планирование контентных касаний в едином контуре.",
   },
   "/telegram": {
-    eyebrow: "Telegram Bridge",
-    title: "Bot operations and identity linking",
+    eyebrow: "Telegram-мост",
+    title: "Операции бота и привязка Telegram identity",
     description:
       "Проверка профиля бота, тестовые сообщения и привязка Telegram identity к CRM-лидам.",
   },
@@ -128,6 +129,17 @@ function formatLabel(value: string | null | undefined) {
     .join(" ");
 }
 
+function formatReferralStatus(value: string | null | undefined) {
+  if (!value) return "—";
+  const labels: Record<string, string> = {
+    pending: "Ожидает",
+    qualified: "Квалифицирован",
+    rewarded: "Вознаграждён",
+    expired: "Истёк",
+  };
+  return labels[value] ?? formatLabel(value);
+}
+
 function formatCurrency(value: number | string | null | undefined) {
   const normalized = typeof value === "string" ? Number(value) : value ?? 0;
   if (!Number.isFinite(normalized as number)) return "$0";
@@ -150,13 +162,13 @@ function formatShortDate(value: Date | string | number | null | undefined) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
 }
 
-function statusPill(value: string, type: "stage" | "temperature" = "stage") {
+function statusPill(value: string, type: "stage" | "temperature" = "stage", label?: string) {
   const styles = type === "stage" ? stageStyles : temperatureStyles;
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 backdrop-blur ${styles[value] ?? "bg-muted text-muted-foreground ring-border"}`}
     >
-      {formatLabel(value)}
+      {label ?? formatLabel(value)}
     </span>
   );
 }
@@ -244,13 +256,13 @@ function HomeContent() {
   const [broadcastCtaUrl, setBroadcastCtaUrl] = useState("");
   const [broadcastScheduledAt, setBroadcastScheduledAt] = useState("");
   const [referralCode, setReferralCode] = useState("");
-  const [referralRewardLabel, setReferralRewardLabel] = useState("Filter bonus");
+  const [referralRewardLabel, setReferralRewardLabel] = useState("Бонус за фильтр");
   const [referralRewardValue, setReferralRewardValue] = useState("25");
   const [spendSource, setSpendSource] = useState("telegram_ads");
   const [spendCampaign, setSpendCampaign] = useState("spring_retargeting");
   const [spendCreative, setSpendCreative] = useState("filters_bundle");
   const [spendUsd, setSpendUsd] = useState("0");
-  const [spendNotes, setSpendNotes] = useState("Safe-mode manual spend entry");
+  const [spendNotes, setSpendNotes] = useState("Ручной ввод расходов в safe-mode");
 
   const currentSection =
     location === "/leads" || location === "/automations" || location === "/broadcasts" || location === "/telegram"
@@ -286,6 +298,7 @@ function HomeContent() {
     { leadId: selectedLeadId ?? 1 },
     { enabled: Boolean(selectedLeadId) }
   );
+  const referralSummaryQuery = trpc.referrals.summary.useQuery();
 
   useEffect(() => {
     if (!leadsQuery.data?.length) {
@@ -360,8 +373,9 @@ function HomeContent() {
       utils.automations.list.invalidate(),
       utils.telegram.profile.invalidate(),
       utils.leads.detail.invalidate(),
+      utils.referrals.summary.invalidate(),
     ]);
-    toast.success("Dashboard data refreshed");
+    toast.success("Данные панели обновлены");
   };
 
   const updateStageMutation = trpc.leads.updateStage.useMutation();
@@ -375,6 +389,7 @@ function HomeContent() {
   const automationStatusMutation = trpc.automations.setStatus.useMutation();
   const executeAutomationMutation = trpc.automations.executeNow.useMutation();
   const createReferralMutation = trpc.referrals.create.useMutation();
+  const updateReferralStatusMutation = trpc.referrals.updateStatus.useMutation();
   const saveSpendEntryMutation = trpc.dashboard.saveSpendEntry.useMutation();
 
   const busy =
@@ -389,12 +404,23 @@ function HomeContent() {
     automationStatusMutation.isPending ||
     executeAutomationMutation.isPending ||
     createReferralMutation.isPending ||
+    updateReferralStatusMutation.isPending ||
     saveSpendEntryMutation.isPending;
 
   const leadDetail = leadDetailQuery.data;
   const selectedLead = leadDetail?.lead;
   const kpis = overviewQuery.data?.kpis;
   const automationsHealth = automationsHealthQuery.data;
+  const referralSummary = referralSummaryQuery.data;
+  const selectedLeadReferralSummary = useMemo(() => {
+    const rows = leadDetail?.referrals ?? [];
+    return {
+      total: rows.length,
+      pending: rows.filter((item) => item.status === "pending").length,
+      qualified: rows.filter((item) => item.status === "qualified").length,
+      rewarded: rows.filter((item) => item.status === "rewarded").length,
+    };
+  }, [leadDetail?.referrals]);
 
   const topLoading =
     authQuery.isLoading ||
@@ -407,7 +433,8 @@ function HomeContent() {
     (isAdmin && spendEntriesQuery.isLoading) ||
     automationsQuery.isLoading ||
     broadcastsQuery.isLoading ||
-    telegramProfileQuery.isLoading;
+    telegramProfileQuery.isLoading ||
+    referralSummaryQuery.isLoading;
 
   const handleSaveSpendEntry = async () => {
     if (!isAdmin) return;
@@ -428,9 +455,9 @@ function HomeContent() {
         utils.dashboard.spendEntries.invalidate(),
         utils.dashboard.acquisition.invalidate(),
       ]);
-      toast.success("Safe-mode spend saved");
+      toast.success("Расходы в safe-mode сохранены");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save spend entry");
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить запись о расходах");
     }
   };
 
@@ -448,10 +475,10 @@ function HomeContent() {
         utils.dashboard.overview.invalidate(),
         utils.dashboard.pipeline.invalidate(),
       ]);
-      toast.success("Lead stage updated");
+      toast.success("Стадия лида обновлена");
       setStatusReason("");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update stage");
+      toast.error(error instanceof Error ? error.message : "Не удалось обновить стадию");
     }
   };
 
@@ -463,10 +490,10 @@ function HomeContent() {
         note: note.trim(),
       });
       await utils.leads.detail.invalidate({ leadId: selectedLeadId });
-      toast.success("Manager note added");
+      toast.success("Заметка менеджера добавлена");
       setNote("");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add note");
+      toast.error(error instanceof Error ? error.message : "Не удалось добавить заметку");
     }
   };
 
@@ -484,13 +511,13 @@ function HomeContent() {
         priority: taskPriority as (typeof taskPriorityOptions)[number],
       });
       await utils.leads.detail.invalidate({ leadId: selectedLeadId });
-      toast.success("Lead task created");
+      toast.success("Задача по лиду создана");
       setTaskTitle("");
       setTaskDescription("");
       setTaskDueAt("");
       setTaskPriority("medium");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create task");
+      toast.error(error instanceof Error ? error.message : "Не удалось создать задачу");
     }
   };
 
@@ -507,9 +534,9 @@ function HomeContent() {
         utils.leads.list.invalidate(),
         utils.dashboard.overview.invalidate(),
       ]);
-      toast.success("Telegram identity linked");
+      toast.success("Telegram identity привязан");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to link Telegram identity");
+      toast.error(error instanceof Error ? error.message : "Не удалось привязать Telegram identity");
     }
   };
 
@@ -524,9 +551,9 @@ function HomeContent() {
         utils.leads.detail.invalidate({ leadId: selectedLeadId }),
         utils.dashboard.overview.invalidate(),
       ]);
-      toast.success("Telegram message sent to lead");
+      toast.success("Telegram-сообщение лиду отправлено");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to send Telegram ping");
+      toast.error(error instanceof Error ? error.message : "Не удалось отправить Telegram-пинг");
     }
   };
 
@@ -537,9 +564,9 @@ function HomeContent() {
         chatId: testChatId.trim(),
         text: testMessage.trim(),
       });
-      toast.success("Telegram test message sent");
+      toast.success("Тестовое Telegram-сообщение отправлено");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to send test message");
+      toast.error(error instanceof Error ? error.message : "Не удалось отправить тестовое сообщение");
     }
   };
 
@@ -555,7 +582,7 @@ function HomeContent() {
         scheduledAt: broadcastScheduledAt ? new Date(broadcastScheduledAt) : null,
       });
       await utils.broadcasts.list.invalidate();
-      toast.success("Broadcast draft created");
+      toast.success("Черновик рассылки создан");
       setBroadcastTitle("");
       setBroadcastBody("");
       setBroadcastSegment("all");
@@ -563,7 +590,7 @@ function HomeContent() {
       setBroadcastCtaUrl("");
       setBroadcastScheduledAt("");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create broadcast");
+      toast.error(error instanceof Error ? error.message : "Не удалось создать рассылку");
     }
   };
 
@@ -578,9 +605,9 @@ function HomeContent() {
         utils.dashboard.overview.invalidate(),
         utils.dashboard.automationsHealth.invalidate(),
       ]);
-      toast.success(`Automation moved to ${status}`);
+      toast.success(`Статус автоматизации изменён: ${formatLabel(status)}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update automation status");
+      toast.error(error instanceof Error ? error.message : "Не удалось обновить статус автоматизации");
     }
   };
 
@@ -596,10 +623,10 @@ function HomeContent() {
         utils.leads.detail.invalidate(),
       ]);
       toast.success(
-        `Automation run complete: ${result.sentCount} sent, ${result.failedCount} failed`
+        `Прогон автоматизации завершён: отправлено ${result.sentCount}, ошибок ${result.failedCount}`
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to execute automation");
+      toast.error(error instanceof Error ? error.message : "Не удалось запустить автоматизацию");
     }
   };
 
@@ -612,11 +639,29 @@ function HomeContent() {
         rewardLabel: referralRewardLabel.trim() || undefined,
         rewardValueUsd: referralRewardValue.trim() || undefined,
       });
-      await utils.leads.detail.invalidate({ leadId: selectedLeadId });
-      toast.success("Referral invite created");
+      await Promise.all([
+        utils.leads.detail.invalidate({ leadId: selectedLeadId }),
+        utils.referrals.summary.invalidate(),
+      ]);
+      toast.success("Реферальный код создан");
       setReferralCode("");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create referral invite");
+      toast.error(error instanceof Error ? error.message : "Не удалось создать реферальный код");
+    }
+  };
+
+  const handleUpdateReferralStatus = async (referralId: number, status: (typeof referralStatusOptions)[number]) => {
+    if (!selectedLeadId) return;
+
+    try {
+      await updateReferralStatusMutation.mutateAsync({ referralId, status });
+      await Promise.all([
+        utils.leads.detail.invalidate({ leadId: selectedLeadId }),
+        utils.referrals.summary.invalidate(),
+      ]);
+      toast.success(`Статус referral обновлён: ${formatReferralStatus(status)}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось обновить статус referral");
     }
   };
 
@@ -628,10 +673,10 @@ function HomeContent() {
         utils.dashboard.overview.invalidate(),
       ]);
       toast.success(
-        `Broadcast dispatched: ${result.sentCount}/${result.totalTargets} delivered`
+        `Рассылка отправлена: доставлено ${result.sentCount} из ${result.totalTargets}`
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to dispatch broadcast");
+      toast.error(error instanceof Error ? error.message : "Не удалось отправить рассылку");
     }
   };
 
@@ -656,21 +701,21 @@ function HomeContent() {
 
           <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[430px]">
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Telegram readiness</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Готовность Telegram</p>
               <p className="mt-3 text-2xl font-semibold text-white">
-                {overviewQuery.data?.deliveryReadiness.hasTelegramToken ? "Online" : "Token missing"}
+                {overviewQuery.data?.deliveryReadiness.hasTelegramToken ? "Подключён" : "Токен отсутствует"}
               </p>
               <p className="mt-2 text-sm text-slate-300">
                 Reachable leads: {overviewQuery.data?.deliveryReadiness.leadsWithTelegramId ?? 0}
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Automation events</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">События автоматизаций</p>
               <p className="mt-3 text-2xl font-semibold text-white">
                 {automationsHealth?.total ?? 0}
               </p>
               <p className="mt-2 text-sm text-slate-300">
-                Sent {automationsHealth?.sent ?? 0} · queued {automationsHealth?.queued ?? 0} · failed {automationsHealth?.failed ?? 0}
+                Отправлено {automationsHealth?.sent ?? 0} · в очереди {automationsHealth?.queued ?? 0} · ошибок {automationsHealth?.failed ?? 0}
               </p>
             </div>
           </div>
@@ -694,7 +739,7 @@ function HomeContent() {
             disabled={busy}
           >
             <RefreshCcw className="mr-2 h-4 w-4" />
-            Refresh data
+            Обновить данные
           </Button>
         </div>
       </header>
@@ -703,7 +748,7 @@ function HomeContent() {
         <div className="flex min-h-[320px] items-center justify-center rounded-[2rem] border border-white/10 bg-card/70 backdrop-blur-xl">
           <div className="flex items-center gap-3 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Loading operational dashboard…
+            Загружаем операционную панель…
           </div>
         </div>
       ) : null}
@@ -719,17 +764,17 @@ function HomeContent() {
           <MetricCard
             title="Hot opportunities"
             value={String(kpis?.hotLeads ?? 0)}
-            subtitle="Need fast follow-up"
+            subtitle="Нужен быстрый follow-up"
             icon={<Flame className="h-4 w-4" />}
           />
           <MetricCard
-            title="Projected revenue"
+            title="Прогноз выручки"
             value={formatCurrency(kpis?.projectedRevenueUsd)}
-            subtitle="Pipeline forecast"
+            subtitle="Прогноз по воронке"
             icon={<Target className="h-4 w-4" />}
           />
           <MetricCard
-            title="Automation coverage"
+            title="Покрытие автоматизаций"
             value={`${kpis?.automationCoverage ?? 0}%`}
             subtitle="Rules currently active"
             icon={<Radar className="h-4 w-4" />}
@@ -741,18 +786,18 @@ function HomeContent() {
         <div className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
           <div className="space-y-6">
             <SectionCard
-              title="Pipeline pulse"
+              title="Пульс воронки"
               description="Распределение лидов по стадиям и сегментам воронки в текущем operational цикле."
             >
               <div className="grid gap-5 lg:grid-cols-2">
                 <div className="rounded-[1.5rem] border border-white/10 bg-background/55 p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <p className="text-sm font-medium text-foreground">Stage distribution</p>
-                    <span className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Realtime</span>
+                    <p className="text-sm font-medium text-foreground">Распределение по стадиям</p>
+                    <span className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Сейчас</span>
                   </div>
                   <ChartContainer
                     className="h-[260px] w-full"
-                    config={{ total: { label: "Leads", color: "#45f7ff" } }}
+                    config={{ total: { label: "Лиды", color: "#45f7ff" } }}
                   >
                     <BarChart data={stageDistribution}>
                       <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -770,12 +815,12 @@ function HomeContent() {
 
                 <div className="rounded-[1.5rem] border border-white/10 bg-background/55 p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <p className="text-sm font-medium text-foreground">Segment mix</p>
-                    <span className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Audience</span>
+                    <p className="text-sm font-medium text-foreground">Сегменты</p>
+                    <span className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Аудитория</span>
                   </div>
                   <ChartContainer
                     className="h-[260px] w-full"
-                    config={{ total: { label: "Leads", color: "#d84dff" } }}
+                    config={{ total: { label: "Лиды", color: "#d84dff" } }}
                   >
                     <PieChart>
                       <Pie
@@ -806,7 +851,7 @@ function HomeContent() {
             </SectionCard>
 
             <SectionCard
-              title="Revenue lanes"
+              title="Коридоры выручки"
               description="Mini-kanban по стадиям, чтобы owner видел где скапливается объём и где нужен ручной follow-up."
             >
               <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
@@ -833,7 +878,7 @@ function HomeContent() {
                         >
                           <div>
                             <p className="text-sm font-medium text-foreground">{lead.fullName}</p>
-                            <p className="text-xs text-muted-foreground">Manager #{lead.assignedManagerId ?? "unassigned"}</p>
+                            <p className="text-xs text-muted-foreground">Менеджер #{lead.assignedManagerId ?? "не назначен"}</p>
                           </div>
                           {statusPill(lead.temperature, "temperature")}
                         </button>
@@ -850,7 +895,7 @@ function HomeContent() {
             </SectionCard>
 
             <SectionCard
-              title="Funnel and acquisition intelligence"
+              title="Воронка и маркетинговая аналитика"
               description="Сводка по полной воронке ad_click → sale_closed и top UTM/source cohorts прямо на главном экране owner-команды."
             >
               <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
@@ -874,11 +919,11 @@ function HomeContent() {
                       </div>
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
                         <div className="rounded-xl border border-white/8 bg-card/70 px-3 py-2">
-                          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Projected revenue</p>
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Прогноз выручки</p>
                           <p className="mt-1 text-sm font-semibold text-foreground">{formatCurrency(row.projectedRevenueUsd)}</p>
                         </div>
                         <div className="rounded-xl border border-white/8 bg-card/70 px-3 py-2">
-                          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Average score</p>
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Средний скор</p>
                           <p className="mt-1 text-sm font-semibold text-foreground">{row.averageScore}</p>
                         </div>
                       </div>
@@ -917,7 +962,7 @@ function HomeContent() {
                             <p className="mt-1 text-sm font-semibold text-foreground">{row.conversionToQuizPct}%</p>
                           </div>
                           <div className="rounded-xl border border-white/8 bg-card/70 px-3 py-2">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Qualified</p>
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Квалифицировано</p>
                             <p className="mt-1 text-sm font-semibold text-foreground">{row.conversionToQualifiedPct}%</p>
                           </div>
                           <div className="rounded-xl border border-white/8 bg-card/70 px-3 py-2">
@@ -997,7 +1042,7 @@ function HomeContent() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-muted-foreground sm:col-span-2">
-                      <span>Notes</span>
+                      <span>Заметки</span>
                       <textarea
                         value={spendNotes}
                         onChange={(event) => setSpendNotes(event.target.value)}
@@ -1010,7 +1055,7 @@ function HomeContent() {
                       <p>Этот режим не зависит от внешнего кабинета и безопасен для старта: CPL пересчитывается сразу после сохранения.</p>
                       <Button onClick={handleSaveSpendEntry} disabled={busy || saveSpendEntryMutation.isPending} className="rounded-full px-5">
                         {saveSpendEntryMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Save spend
+                        Сохранить расход
                       </Button>
                     </div>
                   </div>
@@ -1032,7 +1077,7 @@ function HomeContent() {
                           </div>
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span>Updated: {formatDateTime(entry.updatedAt ?? entry.createdAt)}</span>
+                          <span>Обновлено: {formatDateTime(entry.updatedAt ?? entry.createdAt)}</span>
                           {entry.notes ? <span className="rounded-full border border-white/10 px-2 py-1">{entry.notes}</span> : null}
                         </div>
                       </div>
@@ -1050,7 +1095,7 @@ function HomeContent() {
 
           <div className="space-y-6">
             <SectionCard
-              title="Follow-up queue"
+              title="Очередь follow-up"
               description="Ближайшие касания, которые нельзя потерять в owner и manager workstream."
             >
               <div className="space-y-3">
@@ -1080,7 +1125,7 @@ function HomeContent() {
             </SectionCard>
 
             <SectionCard
-              title="Delivery readiness"
+              title="Готовность к доставке"
               description="Быстрая сводка по Telegram и operational health перед рассылками и ручными касаниями."
             >
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1091,7 +1136,8 @@ function HomeContent() {
                   </p>
                 </div>
                 <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Recent Telegram messages</p>
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Последние Telegram-сообщения</p>
+
                   <p className="mt-2 text-lg font-semibold text-foreground">
                     {overviewQuery.data?.deliveryReadiness.recentMessages ?? 0}
                   </p>
@@ -1145,14 +1191,14 @@ function HomeContent() {
         <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-6">
             <SectionCard
-              title="Lead intelligence matrix"
+              title="Матрица лидов"
               description="Фильтры и shortlist для owner/manager сценариев. Выберите лид, чтобы открыть правую detail-панель."
             >
               <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search by name, phone or Telegram"
+                  placeholder="Поиск по имени, телефону или Telegram"
                   className="h-11 rounded-xl border border-white/10 bg-background/60 px-4 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:border-primary/40"
                 />
                 <select
@@ -1199,7 +1245,7 @@ function HomeContent() {
                   <option value="all">All managers</option>
                   {(managersQuery.data ?? []).map((manager) => (
                     <option key={manager.id} value={manager.id}>
-                      {manager.name ?? `Manager #${manager.id}`}
+                      {manager.name ?? `Менеджер #${manager.id}`}
                     </option>
                   ))}
                 </select>
@@ -1210,12 +1256,12 @@ function HomeContent() {
                   <table className="min-w-full divide-y divide-white/10 text-sm">
                     <thead className="bg-background/80 text-left text-xs uppercase tracking-[0.18em] text-muted-foreground">
                       <tr>
-                        <th className="px-4 py-3">Lead</th>
-                        <th className="px-4 py-3">Segment</th>
-                        <th className="px-4 py-3">Stage</th>
-                        <th className="px-4 py-3">Temperature</th>
-                        <th className="px-4 py-3">Revenue</th>
-                        <th className="px-4 py-3">Updated</th>
+                        <th className="px-4 py-3">Лид</th>
+                        <th className="px-4 py-3">Сегмент</th>
+                        <th className="px-4 py-3">Стадия</th>
+                        <th className="px-4 py-3">Температура</th>
+                        <th className="px-4 py-3">Выручка</th>
+                        <th className="px-4 py-3">Обновлено</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 bg-background/35">
@@ -1249,40 +1295,41 @@ function HomeContent() {
 
           <div className="space-y-6">
             <SectionCard
-              title={selectedLead ? selectedLead.fullName : "Lead detail"}
+              title={selectedLead ? selectedLead.fullName : "Карточка лида"}
               description={
                 selectedLead
-                  ? `${selectedLead.city ?? "Unknown city"} · ${selectedLead.productInterest ?? "No product selected"}`
+                  ? `${selectedLead.city ?? "Город не указан"} · ${selectedLead.productInterest ?? "Продукт не выбран"}`
                   : "Выберите лид слева, чтобы открыть карточку с задачами, заметками и Telegram actions."
               }
             >
               {!selectedLead ? (
                 <div className="rounded-[1.3rem] border border-dashed border-white/10 px-4 py-10 text-center text-sm text-muted-foreground">
-                  Lead card will appear here after selection.
+                  После выбора здесь появится карточка лида.
                 </div>
               ) : (
                 <div className="space-y-5">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Current stage</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Текущая стадия</p>
                       <div className="mt-3">{statusPill(selectedLead.stage)}</div>
                     </div>
                     <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Temperature</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Температура</p>
                       <div className="mt-3">{statusPill(selectedLead.temperature, "temperature")}</div>
                     </div>
                     <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Projected value</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Прогнозная ценность</p>
                       <p className="mt-3 text-lg font-semibold text-foreground">{formatCurrency(selectedLead.expectedRevenueUsd)}</p>
                     </div>
                     <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Next follow-up</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Следующий follow-up</p>
                       <p className="mt-3 text-sm text-foreground">{formatDateTime(selectedLead.nextFollowUpAt)}</p>
                     </div>
                   </div>
 
                   <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                    <p className="text-sm font-medium text-foreground">Stage control</p>
+                      <p className="text-sm font-medium text-foreground">Управление стадией</p>
+
                     <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
                       <select
                         value={selectedStage}
@@ -1308,7 +1355,8 @@ function HomeContent() {
                   </div>
 
                   <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                    <p className="text-sm font-medium text-foreground">Telegram identity and ping</p>
+                      <p className="text-sm font-medium text-foreground">Telegram identity и пинг</p>
+
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       <input
                         value={telegramUsername}
@@ -1329,7 +1377,7 @@ function HomeContent() {
                       </Button>
                       <Button onClick={handleLeadPing} disabled={sendLeadPingMutation.isPending}>
                         <Send className="mr-2 h-4 w-4" />
-                        Send lead ping
+                        Отправить пинг лиду
                       </Button>
                     </div>
                     <textarea
@@ -1342,7 +1390,7 @@ function HomeContent() {
 
                   <div className="grid gap-5 lg:grid-cols-2">
                     <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                      <p className="text-sm font-medium text-foreground">Manager note</p>
+                      <p className="text-sm font-medium text-foreground">Заметка менеджера</p>
                       <textarea
                         value={note}
                         onChange={(event) => setNote(event.target.value)}
@@ -1351,11 +1399,11 @@ function HomeContent() {
                         className="mt-3 w-full rounded-xl border border-white/10 bg-background/60 px-4 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
                       />
                       <Button className="mt-3" onClick={handleAddNote} disabled={addNoteMutation.isPending}>
-                        Save note
+                        Сохранить заметку
                       </Button>
                     </div>
                     <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                      <p className="text-sm font-medium text-foreground">Create task</p>
+                      <p className="text-sm font-medium text-foreground">Создать задачу</p>
                       <div className="mt-3 space-y-3">
                         <input
                           value={taskTitle}
@@ -1367,7 +1415,7 @@ function HomeContent() {
                           value={taskDescription}
                           onChange={(event) => setTaskDescription(event.target.value)}
                           rows={3}
-                          placeholder="Describe the follow-up action"
+                          placeholder="Опишите follow-up действие"
                           className="w-full rounded-xl border border-white/10 bg-background/60 px-4 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
                         />
                         <div className="grid gap-3 md:grid-cols-2">
@@ -1390,37 +1438,72 @@ function HomeContent() {
                           />
                         </div>
                         <Button onClick={handleCreateTask} disabled={createTaskMutation.isPending}>
-                          Create task
+                          Создать задачу
                         </Button>
                       </div>
                     </div>
                   </div>
 
                   <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4">
-                    <p className="text-sm font-medium text-foreground">Referral invite</p>
-                    <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Реферальная программа</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Управление кодами, квалификацией и ручной фиксацией вознаграждений по выбранному лиду.
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-background/60 px-3 py-2 text-right">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Контур вознаграждений</p>
+
+                        <p className="mt-1 text-sm font-semibold text-foreground">{formatCurrency(referralSummary?.openRewardUsd)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-4">
+                      <div className="rounded-xl border border-white/10 bg-background/60 px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">У лида</p>
+                        <p className="mt-2 text-lg font-semibold text-foreground">{selectedLeadReferralSummary.total}</p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-background/60 px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Ожидают</p>
+                        <p className="mt-2 text-lg font-semibold text-foreground">{selectedLeadReferralSummary.pending}</p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-background/60 px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Квалифицированы</p>
+                        <p className="mt-2 text-lg font-semibold text-foreground">{selectedLeadReferralSummary.qualified}</p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-background/60 px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Вознаграждены</p>
+                        <p className="mt-2 text-lg font-semibold text-foreground">{selectedLeadReferralSummary.rewarded}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
                       <input
                         value={referralCode}
                         onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
-                        placeholder="Referral code"
+                        placeholder="Реферальный код"
                         className="h-11 rounded-xl border border-white/10 bg-background/60 px-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
                       />
                       <input
                         value={referralRewardLabel}
                         onChange={(event) => setReferralRewardLabel(event.target.value)}
-                        placeholder="Reward label"
+                        placeholder="Название вознаграждения"
                         className="h-11 rounded-xl border border-white/10 bg-background/60 px-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
                       />
                       <input
                         value={referralRewardValue}
                         onChange={(event) => setReferralRewardValue(event.target.value)}
-                        placeholder="Reward USD"
+                        placeholder="Сумма, USD"
                         className="h-11 rounded-xl border border-white/10 bg-background/60 px-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
                       />
                     </div>
-                    <Button className="mt-3" variant="outline" onClick={handleCreateReferral} disabled={createReferralMutation.isPending}>
-                      Create referral invite
-                    </Button>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <Button className="min-w-[220px]" variant="outline" onClick={handleCreateReferral} disabled={createReferralMutation.isPending}>
+                        Создать реферальный код
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Всего по системе: {referralSummary?.total ?? 0} · квалифицировано: {referralSummary?.qualified ?? 0} · выплачено: {formatCurrency(referralSummary?.rewardedUsd)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1428,12 +1511,12 @@ function HomeContent() {
 
             {selectedLead ? (
               <SectionCard
-                title="Lead activity ribbon"
+                title="Лента активности лида"
                 description="Краткая история заметок, сообщений, задач и referral-кодов по выбранному лиду."
               >
                 <div className="space-y-4">
                   <div>
-                    <p className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">Notes</p>
+                    <p className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">Заметки</p>
                     <div className="space-y-2">
                       {(leadDetail?.notes ?? []).slice(0, 3).map((item) => (
                         <div key={item.id} className="rounded-xl border border-white/10 bg-background/55 px-4 py-3">
@@ -1448,7 +1531,7 @@ function HomeContent() {
                   </div>
 
                   <div>
-                    <p className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">Tasks</p>
+                    <p className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">Задачи</p>
                     <div className="space-y-2">
                       {(leadDetail?.tasks ?? []).slice(0, 3).map((item) => (
                         <div key={item.id} className="rounded-xl border border-white/10 bg-background/55 px-4 py-3">
@@ -1480,17 +1563,37 @@ function HomeContent() {
                   </div>
 
                   <div>
-                    <p className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">Referrals</p>
+                    <p className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">Рефералы</p>
                     <div className="space-y-2">
-                      {(leadDetail?.referrals ?? []).slice(0, 3).map((item) => (
+                      {(leadDetail?.referrals ?? []).slice(0, 5).map((item) => (
                         <div key={item.id} className="rounded-xl border border-white/10 bg-background/55 px-4 py-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-medium text-foreground">{item.code}</p>
-                            {statusPill(item.status)}
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{item.code}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {item.rewardLabel || "Реферальный бонус"} · {formatCurrency(item.rewardValueUsd)}
+                              </p>
+                            </div>
+                            {statusPill(item.status, "stage", formatReferralStatus(item.status))}
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {item.rewardLabel || "Reward"} · {formatCurrency(item.rewardValueUsd)}
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Создан: {formatDateTime(item.createdAt)} · квалификация: {formatDateTime(item.qualifiedAt)} · выплата: {formatDateTime(item.rewardedAt)}
                           </p>
+                          {isAdmin ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {referralStatusOptions.map((status) => (
+                                <Button
+                                  key={`${item.id}-${status}`}
+                                  size="sm"
+                                  variant={item.status === status ? "default" : "outline"}
+                                  onClick={() => handleUpdateReferralStatus(item.id, status)}
+                                  disabled={updateReferralStatusMutation.isPending && item.status !== status}
+                                >
+                                  {formatReferralStatus(status)}
+                                </Button>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -1506,39 +1609,39 @@ function HomeContent() {
         <div className="grid gap-6 xl:grid-cols-[1fr_1.1fr]">
           <div className="space-y-6">
             <SectionCard
-              title="Automation health snapshot"
+              title="Срез по автоматизациям"
               description="Queue vs sent vs failed: базовая телеметрия сценариев и их delivery-контур."
             >
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <MetricCard
-                  title="Queued"
+                  title="В очереди"
                   value={String(automationsHealth?.queued ?? 0)}
-                  subtitle="Waiting in line"
+                  subtitle="Ожидают отправки"
                   icon={<Clock3 className="h-4 w-4" />}
                 />
                 <MetricCard
-                  title="Sent"
+                  title="Отправлено"
                   value={String(automationsHealth?.sent ?? 0)}
-                  subtitle="Delivered actions"
+                  subtitle="Доставленные действия"
                   icon={<Send className="h-4 w-4" />}
                 />
                 <MetricCard
-                  title="Failed"
+                  title="Ошибки"
                   value={String(automationsHealth?.failed ?? 0)}
-                  subtitle="Need review"
+                  subtitle="Требуют проверки"
                   icon={<CircleAlert className="h-4 w-4" />}
                 />
                 <MetricCard
                   title="Reachable"
                   value={String(overviewQuery.data?.deliveryReadiness.leadsWithTelegramId ?? 0)}
-                  subtitle="Telegram-linked leads"
+                  subtitle="Лиды с привязанным Telegram"
                   icon={<Bot className="h-4 w-4" />}
                 />
               </div>
             </SectionCard>
 
             <SectionCard
-              title="Delivery checklist"
+              title="Чек-лист доставки"
               description="Короткий owner-чек перед запуском campaign и automation waves."
             >
               <div className="space-y-3">
@@ -1572,7 +1675,8 @@ function HomeContent() {
           </div>
 
           <SectionCard
-            title="Automation rules"
+              title="Правила автоматизаций"
+
             description="Переключение статусов, ручной запуск и быстрый просмотр trigger logic для owner-команды."
             actions={
               <Button
@@ -1643,7 +1747,8 @@ function HomeContent() {
       {!topLoading && currentSection === "/broadcasts" ? (
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <SectionCard
-            title="Create broadcast draft"
+              title="Создать черновик рассылки"
+
             description="Сегментированная Telegram-рассылка с CTA и optional schedule прямо из админ-панели."
           >
             <div className="space-y-3">
@@ -1657,7 +1762,7 @@ function HomeContent() {
                 value={broadcastBody}
                 onChange={(event) => setBroadcastBody(event.target.value)}
                 rows={6}
-                placeholder="Write the Telegram broadcast copy"
+                placeholder="Введите текст Telegram-рассылки"
                 className="w-full rounded-xl border border-white/10 bg-background/60 px-4 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
               />
               <div className="grid gap-3 md:grid-cols-3">
@@ -1694,13 +1799,14 @@ function HomeContent() {
               />
               <Button onClick={handleCreateBroadcast} disabled={createBroadcastMutation.isPending}>
                 <Megaphone className="mr-2 h-4 w-4" />
-                Save draft
+                Сохранить черновик
               </Button>
             </div>
           </SectionCard>
 
           <SectionCard
-            title="Broadcast queue"
+              title="Очередь рассылок"
+
             description="Последние драфты и scheduled campaigns по Telegram сегментам с ручным safe-mode запуском."
           >
             <div className="space-y-4">
@@ -1715,8 +1821,8 @@ function HomeContent() {
                       <p className="text-sm text-muted-foreground">{item.body}</p>
                     </div>
                     <div className="space-y-2 text-sm text-muted-foreground md:text-right">
-                      <p>Segment: {formatLabel(item.segment ?? "all")}</p>
-                      <p>Scheduled: {formatDateTime(item.scheduledAt)}</p>
+                      <p>Сегмент: {formatLabel(item.segment ?? "all")}</p>
+                      <p>Запланировано: {formatDateTime(item.scheduledAt)}</p>
                       <p>CTA: {item.ctaLabel || "—"}</p>
                       <Button
                         variant="outline"
@@ -1739,7 +1845,7 @@ function HomeContent() {
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <div className="space-y-6">
             <SectionCard
-              title="Bot profile"
+              title="Профиль бота"
               description="Служебная карточка подключённого Telegram-бота и operational показатели канала."
             >
               <div className="grid gap-4 md:grid-cols-2">
@@ -1754,14 +1860,14 @@ function HomeContent() {
                 <div className="rounded-[1.2rem] border border-white/10 bg-background/55 p-4 md:col-span-2">
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Reach and traffic</p>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    Telegram-linked leads: {overviewQuery.data?.deliveryReadiness.leadsWithTelegramId ?? 0} · Recent messages: {overviewQuery.data?.deliveryReadiness.recentMessages ?? 0}
+                    Лиды с привязанным Telegram: {overviewQuery.data?.deliveryReadiness.leadsWithTelegramId ?? 0} · Последние сообщения: {overviewQuery.data?.deliveryReadiness.recentMessages ?? 0}
                   </p>
                 </div>
               </div>
             </SectionCard>
 
             <SectionCard
-              title="Send test message"
+              title="Отправить тестовое сообщение"
               description="Проверка живого Bot API канала перед owner alerts и campaign send-outs."
             >
               <div className="space-y-3">
@@ -1779,18 +1885,19 @@ function HomeContent() {
                 />
                 <Button onClick={handleSendTestMessage} disabled={sendTestMessageMutation.isPending}>
                   <Bot className="mr-2 h-4 w-4" />
-                  Send Telegram test
+                  Отправить Telegram-тест
                 </Button>
               </div>
             </SectionCard>
           </div>
 
           <SectionCard
-            title="Leads with Telegram context"
+              title="Лиды с Telegram-контекстом"
+
             description="Кандидаты для быстрого пинга, owner follow-up и ручной привязки identity."
             actions={
               <Button variant="outline" className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/15" onClick={() => setLocation("/leads")}>
-                Open lead workbench
+                Открыть рабочее место лида
               </Button>
             }
           >
