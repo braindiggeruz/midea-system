@@ -30,6 +30,8 @@ import {
   users,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { hashPassword } from "./_core/password";
+import { buildLocalOpenId, normalizeEmail } from "./_core/sdk";
 import { sendTelegramRichMessage } from "./telegram";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -595,7 +597,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     };
     const updateSet: Record<string, unknown> = {};
 
-    const textFields = ["name", "email", "loginMethod"] as const;
+    const textFields = ["name", "email", "loginMethod", "passwordHash"] as const;
     type TextField = (typeof textFields)[number];
 
     const assignNullable = (field: TextField) => {
@@ -615,9 +617,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = "admin";
-      updateSet.role = "admin";
+    }
+    if (user.isActive !== undefined) {
+      values.isActive = user.isActive;
+      updateSet.isActive = user.isActive;
     }
 
     if (!values.lastSignedIn) {
@@ -637,6 +640,18 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 }
 
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user by id: database not available");
+    return undefined;
+  }
+
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) {
@@ -647,6 +662,46 @@ export async function getUserByOpenId(openId: string) {
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
 
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user by email: database not available");
+    return undefined;
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const result = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function ensureStandaloneAdmin() {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot bootstrap admin: database not available");
+    return;
+  }
+
+  if (!ENV.adminEmail || !ENV.adminPassword) {
+    return;
+  }
+
+  const email = normalizeEmail(ENV.adminEmail);
+  const passwordHash = await hashPassword(ENV.adminPassword);
+  const openId = buildLocalOpenId(email);
+
+  await upsertUser({
+    openId,
+    email,
+    passwordHash,
+    loginMethod: "password",
+    name: ENV.adminName || email.split("@")[0],
+    role: "admin",
+    isActive: 1,
+    lastSignedIn: new Date(),
+  });
 }
 
 export async function listManagers(scope?: LeadAccessScope) {

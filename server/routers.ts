@@ -1,4 +1,4 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { z } from "zod";
 import {
   automationStatuses,
@@ -9,6 +9,8 @@ import {
   taskPriorities,
 } from "../drizzle/schema";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { verifyPassword } from "./_core/password";
+import { sdk } from "./_core/sdk";
 import { notifyOwner } from "./_core/notification";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -29,12 +31,14 @@ import {
   getLeadFunnelAnalytics,
   getLeadPipelineSummary,
   getReferralSummary,
+  getUserByEmail,
   listAdSpendEntries,
   listAutomationRules,
   listBroadcasts,
   listLeads,
   listManagers,
   logLeadCommunication,
+  upsertUser,
   updateAutomationRuleStatus,
   updateLeadStage,
   updateLeadTelegramIdentity,
@@ -42,6 +46,11 @@ import {
   upsertAdSpendEntry,
 } from "./db";
 import { getTelegramBotProfile, sendTelegramMessage } from "./telegram";
+
+const loginInput = z.object({
+  email: z.string().trim().email(),
+  password: z.string().min(8).max(128),
+});
 
 const leadListInput = z.object({
   query: z.string().trim().optional(),
@@ -154,10 +163,70 @@ const toLeadIdentity = (lead: unknown) =>
     telegramUsername?: string | null;
   };
 
+const sanitizeUser = (user: {
+  id: number;
+  openId: string;
+  name: string | null;
+  email: string | null;
+  loginMethod: string | null;
+  role: "user" | "manager" | "admin";
+  isActive: number;
+  createdAt: Date;
+  updatedAt: Date;
+  lastSignedIn: Date;
+}) => ({
+  id: user.id,
+  openId: user.openId,
+  name: user.name,
+  email: user.email,
+  loginMethod: user.loginMethod,
+  role: user.role,
+  isActive: Boolean(user.isActive),
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+  lastSignedIn: user.lastSignedIn,
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query((opts) => (opts.ctx.user ? sanitizeUser(opts.ctx.user) : null)),
+    login: publicProcedure.input(loginInput).mutation(async ({ ctx, input }) => {
+      const email = input.email.trim().toLowerCase();
+      const user = await getUserByEmail(email);
+
+      if (!user || !user.passwordHash || !user.isActive) {
+        throw new Error("Неверный email или пароль");
+      }
+
+      const isValidPassword = await verifyPassword(input.password, user.passwordHash);
+      if (!isValidPassword) {
+        throw new Error("Неверный email или пароль");
+      }
+
+      await upsertUser({
+        openId: user.openId,
+        email: user.email,
+        passwordHash: user.passwordHash,
+        loginMethod: user.loginMethod ?? "password",
+        name: user.name,
+        role: user.role,
+        isActive: user.isActive,
+        lastSignedIn: new Date(),
+      });
+
+      const token = await sdk.createSessionToken(user);
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.cookie(COOKIE_NAME, token, {
+        ...cookieOptions,
+        maxAge: ONE_YEAR_MS,
+      });
+
+      return {
+        success: true,
+        user: sanitizeUser({ ...user, lastSignedIn: new Date() }),
+      } as const;
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });

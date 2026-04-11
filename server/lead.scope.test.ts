@@ -9,7 +9,7 @@ function createUser(role: AuthenticatedUser["role"]): AuthenticatedUser {
     openId: `${role}-user`,
     email: `${role}@example.com`,
     name: `${role} user`,
-    loginMethod: "manus",
+    loginMethod: "password",
     role,
     createdAt: new Date(),
     updatedAt: new Date(),
