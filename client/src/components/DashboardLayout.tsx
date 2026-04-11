@@ -21,15 +21,26 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import {
+  Bot,
+  LayoutDashboard,
+  LogOut,
+  Megaphone,
+  PanelLeft,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "Command Center", path: "/" },
+  { icon: Users, label: "Leads Pipeline", path: "/leads" },
+  { icon: Sparkles, label: "Automation Grid", path: "/automations" },
+  { icon: Megaphone, label: "Broadcast Studio", path: "/broadcasts" },
+  { icon: Bot, label: "Telegram Bridge", path: "/telegram" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -58,15 +69,20 @@ export default function DashboardLayout({
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
-            </p>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="w-full max-w-md rounded-[2rem] border border-border/60 bg-card/80 p-8 shadow-2xl shadow-primary/10 backdrop-blur">
+          <div className="flex flex-col items-center gap-6 text-center">
+            <div className="inline-flex rounded-full border border-primary/30 bg-primary/10 px-4 py-1 text-xs font-medium uppercase tracking-[0.3em] text-primary">
+              Midea Digital Contour Admin
+            </div>
+            <div className="space-y-3">
+              <h1 className="text-2xl font-semibold tracking-tight text-card-foreground">
+                Sign in to open the command center
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Доступ к operational dashboard ограничен авторизованными owner и manager аккаунтами.
+              </p>
+            </div>
           </div>
           <Button
             onClick={() => {
@@ -159,8 +175,8 @@ function DashboardLayoutContent({
           className="border-r-0"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center">
-            <div className="flex items-center gap-3 px-2 transition-all w-full">
+          <SidebarHeader className="h-18 justify-center border-b border-sidebar-border/60 px-2">
+            <div className="flex w-full items-center gap-3 px-2 transition-all">
               <button
                 onClick={toggleSidebar}
                 className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
@@ -169,10 +185,13 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
-                  </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold tracking-[0.18em] text-sidebar-foreground/90 uppercase">
+                    Midea Contour
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    Lead orchestration console
+                  </p>
                 </div>
               ) : null}
             </div>
@@ -188,7 +207,7 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      className="h-11 rounded-xl border border-transparent font-normal transition-all data-[active=true]:border-primary/30 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                     >
                       <item.icon
                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
@@ -252,12 +271,15 @@ function DashboardLayoutContent({
                   <span className="tracking-tight text-foreground">
                     {activeMenuItem?.label ?? "Menu"}
                   </span>
+                  <span className="text-xs text-muted-foreground">
+                    Real-time CRM, automations and Telegram operations
+                  </span>
                 </div>
               </div>
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 bg-background p-4 md:p-6">{children}</main>
       </SidebarInset>
     </>
   );
