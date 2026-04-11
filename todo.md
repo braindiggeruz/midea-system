@@ -12,7 +12,7 @@
 - [x] Реализовать webhook-приёмник amoCRM для синхронизации статусов сделок и действий менеджеров обратно в панель
 - [x] Реализовать owner notifications для hot leads, completed quiz sessions и closed sales
 - [x] Построить cyberpunk UI админ-панели в high-contrast стиле с neon pink, electric cyan и HUD-элементами
-- [ ] Подготовить deployment-ready конфигурацию и документацию для GitHub, Railway и Cloudflare с учётом совместимости
+- [x] Подготовить deployment-ready конфигурацию и документацию для GitHub, Railway и Cloudflare с учётом совместимости
 - [x] Покрыть критические серверные сценарии и доступы vitest-тестами
 - [x] Провести финальную проверку статусов, исправить дефекты и подготовить checkpoint перед передачей
 - [ ] Подключить проект к личному GitHub-репозиторию пользователя `braindiggeruz/midea-system` и подготовить основную ветку для Railway deploy
@@ -29,3 +29,4 @@
 - [x] Добавить vitest на acquisition analytics, проверяющий conversion-метрики, сегменты и корректный CPL при наличии spend данных
 - [x] Реализовать safe-mode CPL: ручной ввод spend по source/campaign/creative в админ-панели, хранение затрат в БД и расчёт cplUsd/spendUsd в acquisition analytics
 - [x] Усилить safe-mode режим: валидация amoCRM webhook, ручной запуск automation rules и ручной dispatch broadcast из UI без обязательной внешней оркестрации
+- [x] Подготовить подробный roadmap доведения системы до состояния готового продукта с этапами, зависимостями, внешними блокерами и критериями готовности
