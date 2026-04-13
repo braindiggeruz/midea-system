@@ -110,3 +110,16 @@
 | `certificateStatus` | `CERTIFICATE_STATUS_TYPE_VALIDATING_OWNERSHIP` | оставшийся блокер сейчас на стороне Railway certificate / edge binding |
 
 Практический вывод после финальной API-проверки: с нашей стороны DNS уже выставлен корректно, custom domain привязан к правильному сервису, а оставшаяся проблема больше не выглядит как ошибка кода, Cloudflare DNS или неверного target. На текущий момент узкое место находится на стороне Railway edge binding / certificate issuance для `admin.midea-alba.uz`.
+
+## Redeploy retry via Railway API (2026-04-13)
+
+После финального подтверждения DNS была выполнена ещё одна безопасная корректирующая попытка: запуск redeploy через мутацию `environmentTriggersDeploy`.
+
+| Проверка | Результат |
+| --- | --- |
+| `environmentTriggersDeploy` с project token | `Bad Access` |
+| `environmentTriggersDeploy` с account token | `true` |
+| `https://admin.midea-alba.uz` после redeploy trigger | всё ещё `HTTP/2 404` и `x-railway-fallback: true` |
+| Railway `domains(...)` после redeploy trigger | `requiredValue=currentValue=h7tq7iiv.up.railway.app`, `DNS_RECORD_STATUS_PROPAGATED`, `certificateStatus=CERTIFICATE_STATUS_TYPE_VALIDATING_OWNERSHIP` |
+
+Итог после redeploy-попытки: даже принудительный redeploy сервиса не перевёл custom domain в активное состояние и не сдвинул выпуск сертификата дальше стадии `VALIDATING_OWNERSHIP`. Это ещё сильнее подтверждает, что оставшийся блокер находится на стороне Railway edge/certificate pipeline, а не в коде приложения, DNS-записи Cloudflare или runtime-конфигурации standalone-админки.
