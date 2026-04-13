@@ -123,3 +123,14 @@
 | Railway `domains(...)` после redeploy trigger | `requiredValue=currentValue=h7tq7iiv.up.railway.app`, `DNS_RECORD_STATUS_PROPAGATED`, `certificateStatus=CERTIFICATE_STATUS_TYPE_VALIDATING_OWNERSHIP` |
 
 Итог после redeploy-попытки: даже принудительный redeploy сервиса не перевёл custom domain в активное состояние и не сдвинул выпуск сертификата дальше стадии `VALIDATING_OWNERSHIP`. Это ещё сильнее подтверждает, что оставшийся блокер находится на стороне Railway edge/certificate pipeline, а не в коде приложения, DNS-записи Cloudflare или runtime-конфигурации standalone-админки.
+
+## Additional TLS recheck (2026-04-13, later)
+
+После дополнительного ожидания была выполнена ещё одна точечная прямая проверка обоих доменов.
+
+| Проверка | Результат | Вывод |
+| --- | --- | --- |
+| `https://midea-digital-contour-admin-production.up.railway.app` | `HTTP/2 200`, `server: railway-edge`, `x-powered-by: Express` | origin админки жив и продолжает обслуживать приложение |
+| `https://admin.midea-alba.uz` | `curl: (35) error:0A000126:SSL routines::unexpected eof while reading` | custom domain уже спотыкается непосредственно на TLS/edge-handshake, а не доходит до нормального HTTP-ответа |
+
+Этот сдвиг от `HTTP 404 x-railway-fallback` к TLS EOF не указывает на проблему в коде приложения. Наоборот, он дополнительно усиливает вывод, что остаточный дефект находится на стороне Railway custom-domain edge / certificate issuance pipeline.
