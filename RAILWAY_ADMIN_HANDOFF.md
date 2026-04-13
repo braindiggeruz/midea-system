@@ -1,5 +1,9 @@
 # Railway Admin Handoff
 
+# DEPRECATED — historical handoff
+
+> Этот документ сохранён как промежуточный handoff периода миграции. Для актуального standalone-контура используйте `FINAL_STANDALONE_HANDOFF.md`, а этот файл считайте исторической сводкой.
+
 Этот документ фиксирует текущее состояние внешнего контура для админ-панели **Midea Digital Contour Admin** и даёт короткий маршрут дальнейших действий.
 
 ## Current access points

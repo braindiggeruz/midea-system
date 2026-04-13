@@ -1,5 +1,9 @@
 # Deployment Ready Runbook
 
+# DEPRECATED — do not use as primary handoff
+
+> Этот документ сохранён только как исторический runbook миграции. Для актуального standalone-контура используйте `FINAL_STANDALONE_HANDOFF.md`.
+
 ## Purpose
 
 Этот документ фиксирует **deployment-ready** контур проекта **Midea Digital Contour Admin** для безопасной передачи в GitHub, запуска на Railway и подключения через Cloudflare без хардкода секретов и без изменения прикладной логики. Документ описывает только подготовленный рабочий путь; фактическое подключение к личным аккаунтам пользователя остаётся отдельным внешним шагом.

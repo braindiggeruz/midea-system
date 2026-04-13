@@ -210,15 +210,15 @@ const normalizeToolChoice = (
 };
 
 const resolveApiUrl = () => {
-  if (!ENV.forgeApiUrl || ENV.forgeApiUrl.trim().length === 0) {
+  if (!ENV.serviceGatewayUrl || ENV.serviceGatewayUrl.trim().length === 0) {
     throw new Error("LLM_API_BASE_URL is not configured");
   }
 
-  return `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`;
+  return `${ENV.serviceGatewayUrl.replace(/\/$/, "")}/v1/chat/completions`;
 };
 
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
+  if (!ENV.serviceGatewayApiKey) {
     throw new Error("LLM_API_KEY is not configured");
   }
 };
@@ -319,7 +319,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${ENV.serviceGatewayApiKey}`,
     },
     body: JSON.stringify(payload),
   });

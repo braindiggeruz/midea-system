@@ -16,8 +16,14 @@ export const ENV = {
   adminName:
     process.env.STANDALONE_ADMIN_NAME ?? process.env.ADMIN_NAME ?? "",
   isProduction: process.env.NODE_ENV === "production",
-  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  serviceGatewayUrl:
+    process.env.SERVICE_GATEWAY_URL ??
+    process.env.STANDALONE_SERVICE_GATEWAY_URL ??
+    "",
+  serviceGatewayApiKey:
+    process.env.SERVICE_GATEWAY_API_KEY ??
+    process.env.STANDALONE_SERVICE_GATEWAY_API_KEY ??
+    "",
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
   ownerNotificationWebhookUrl:
     process.env.OWNER_NOTIFICATION_WEBHOOK_URL ?? "",

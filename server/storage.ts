@@ -6,12 +6,12 @@ import { ENV } from './_core/env';
 type StorageConfig = { baseUrl: string; apiKey: string };
 
 function getStorageConfig(): StorageConfig {
-  const baseUrl = ENV.forgeApiUrl;
-  const apiKey = ENV.forgeApiKey;
+  const baseUrl = ENV.serviceGatewayUrl;
+  const apiKey = ENV.serviceGatewayApiKey;
 
   if (!baseUrl || !apiKey) {
     throw new Error(
-      "Storage proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
+      "Storage gateway credentials missing: set SERVICE_GATEWAY_URL and SERVICE_GATEWAY_API_KEY"
     );
   }
 

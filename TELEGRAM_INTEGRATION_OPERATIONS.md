@@ -1,5 +1,9 @@
 # Telegram Integration Operations
 
+# DEPRECATED — do not use as primary handoff
+
+> Этот документ сохранён как историческая операционная заметка. Для актуального standalone-контура используйте `FINAL_STANDALONE_HANDOFF.md`, а этот файл рассматривайте только как архив ранней конфигурации.
+
 ## Purpose
 
 Этот документ фиксирует рабочий контур Telegram-интеграции в проекте **Midea Digital Contour Admin**, правила хранения секретов и безопасный порядок эксплуатации broadcast и automation execution. Документ нужен для того, чтобы серверная часть, деплой и последующая передача проекта в GitHub, Railway и Cloudflare выполнялись без хардкода токенов и без утечки чувствительных данных.

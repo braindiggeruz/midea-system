@@ -1,5 +1,9 @@
 # План полной отвязки админки от Manus для Railway
 
+# DEPRECATED — migration plan only
+
+> Этот документ отражает план миграции, а не финальное production-состояние. Для актуального standalone-контура используйте `FINAL_STANDALONE_HANDOFF.md`.
+
 ## Цель
 
 Перевести админку на **самостоятельную эксплуатацию в Railway** без редиректов на `manus.im`, без Manus OAuth, без `vite-plugin-manus-runtime` и без обязательных вызовов к встроенным platform APIs.
