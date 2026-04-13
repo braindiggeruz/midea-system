@@ -62,3 +62,4 @@
 - [x] Обновить DNS-запись `admin.midea-alba.uz` на новый Railway target `h7tq7iiv.up.railway.app`
 - [ ] Повторно проверить Railway custom domain status для `admin.midea-alba.uz` после распространения DNS и подтвердить выпуск сертификата
 - [x] Найти уже сохранённые Railway токены и идентификаторы в песочнице и использовать их для финальной проверки binding/certificate status `admin.midea-alba.uz`
+- [x] Изучить сайт https://midea-alba.uz/?lang=ru и подготовить полный пакет прогрева для бота и контент-каналов: контент-структуру, посты, сообщения и рекомендации по публикации
