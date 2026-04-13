@@ -63,3 +63,9 @@
 - [ ] Повторно проверить Railway custom domain status для `admin.midea-alba.uz` после распространения DNS и подтвердить выпуск сертификата
 - [x] Найти уже сохранённые Railway токены и идентификаторы в песочнице и использовать их для финальной проверки binding/certificate status `admin.midea-alba.uz`
 - [x] Изучить сайт https://midea-alba.uz/?lang=ru и подготовить полный пакет прогрева для бота и контент-каналов: контент-структуру, посты, сообщения и рекомендации по публикации
+- [ ] Собрать полный инфраструктурный контур под ключ: проверить все оставшиеся Railway/Cloudflare/GitHub/API hostname зависимости и свести их в единый рабочий план закрытия
+- [ ] Реализовать или задокументировать рабочий обходной путь для custom domain `admin.midea-alba.uz`, если Railway edge/TLS блокер не снимается автоматически
+- [ ] Проверить, может ли Cloudflare proxy с override Host/SNI закрыть внешний Railway TLS-блокер без изменения кода приложения
+- [ ] Проверить и завершить весь standalone-контур так, чтобы админка, API-хосты, домены и handoff-документация были собраны в единое рабочее состояние
+- [x] Проверить фактический эффект Cloudflare proxied mode для `admin.midea-alba.uz`: подтвердить edge TLS и зафиксировать, снимает ли это Railway fallback
+- [ ] Получить Cloudflare-доступ уровня Origin Rules (или интерактивный вход в Dashboard) для настройки Host/SNI override на `admin.midea-alba.uz`, если Railway custom-domain binding не начнёт матчиться самостоятельно

@@ -43,3 +43,18 @@
 ## Important practical note
 
 Если потребуется ручная проверка Railway UI, в браузере Manus сейчас нет активной Railway-сессии; откроется экран логина. Поэтому для UI-only проверки GitHub linkage или project settings потребуется либо ручной вход пользователя, либо дальнейшая работа через уже выданные API-токены.
+
+## Update — 2026-04-13: Cloudflare proxy validation for `admin.midea-alba.uz`
+
+Проведена дополнительная внешняя проверка после API-переключения DNS-записи `admin.midea-alba.uz` в режим `proxied=true` на стороне Cloudflare.
+
+| Проверка | Фактический результат | Значение для контура |
+| --- | --- | --- |
+| Cloudflare DNS record update | Применился успешно: `CNAME admin.midea-alba.uz -> h7tq7iiv.up.railway.app`, `proxied=true` | Публичный домен теперь проходит через Cloudflare edge |
+| HTTPS на `admin.midea-alba.uz` | Ответ приходит с `server: cloudflare` | Пользовательский TLS на внешнем периметре поднимается уже через Cloudflare |
+| Origin routing | Ответ остаётся `HTTP/2 404` с `x-railway-fallback: true` | Railway по-прежнему не матчится на host `admin.midea-alba.uz` |
+| Следующий потенциальный обход | Host header / DNS override / SNI override через Cloudflare Origin Rules | Это отдельный класс конфигурации; обычного proxied CNAME недостаточно |
+
+Практический вывод: **простое включение Cloudflare proxy не завершает standalone-контур**. Оно закрывает только внешний TLS-слой, но не устраняет Railway fallback на origin-routing. Полное закрытие `admin.midea-alba.uz` теперь зависит либо от того, что Railway начнёт корректно принимать custom host самостоятельно, либо от наличия Cloudflare-доступа уровня Origin Rules / Host+SNI override.
+
+Дополнительно подтверждено, что имеющийся Cloudflare API token достаточно уверенно работает для DNS-операций, но запросы к rulesets/origin-rules API возвращают authentication error. Поэтому следующий шаг по Host/SNI override нельзя надёжно выполнить полностью автоматически в текущем доступе без более широких Cloudflare permissions или интерактивного входа в Dashboard.
