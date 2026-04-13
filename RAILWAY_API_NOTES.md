@@ -94,3 +94,19 @@
 | `https://midea-digital-contour-admin-production.up.railway.app` | `HTTP/2 200` | production deploy самого приложения жив |
 
 Практический вывод после всех изменений: приложение на Railway работает, DNS уже переведён на новый target, однако новый custom-domain binding на стороне Railway edge всё ещё не активировался. Оставшийся блокер теперь сосредоточен не в коде, не в Cloudflare DNS и не в runtime dev-сервера, а в завершении Railway domain binding / certificate issuance для `admin.midea-alba.uz`.
+
+## Final Railway API re-check (2026-04-13)
+
+Через сохранённый Railway project token выполнена повторная GraphQL-проверка по `customDomain(id, projectId)` и `domains(projectId, environmentId, serviceId)` для сервиса `midea-digital-contour-admin`.
+
+| Поле | Актуальное значение | Вывод |
+| --- | --- | --- |
+| `customDomain.id` | `d4839c6b-c9d8-402a-8fa4-17c0a05b0890` | активная перепривязанная запись Railway |
+| `domain` | `admin.midea-alba.uz` | тот же custom domain |
+| `serviceId` | `5ae8aa1f-e096-4a89-8204-28f1d4361d0c` | домен по-прежнему привязан к сервису админки |
+| `requiredValue` | `h7tq7iiv.up.railway.app` | Railway ожидает новый target |
+| `currentValue` | `h7tq7iiv.up.railway.app` | Railway уже видит корректный DNS |
+| `dns status` | `DNS_RECORD_STATUS_PROPAGATED` | DNS-блокер снят |
+| `certificateStatus` | `CERTIFICATE_STATUS_TYPE_VALIDATING_OWNERSHIP` | оставшийся блокер сейчас на стороне Railway certificate / edge binding |
+
+Практический вывод после финальной API-проверки: с нашей стороны DNS уже выставлен корректно, custom domain привязан к правильному сервису, а оставшаяся проблема больше не выглядит как ошибка кода, Cloudflare DNS или неверного target. На текущий момент узкое место находится на стороне Railway edge binding / certificate issuance для `admin.midea-alba.uz`.

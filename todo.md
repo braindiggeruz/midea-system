@@ -57,7 +57,8 @@
 - [x] Проверить через Railway API фактический production deployment сервиса `midea-digital-contour-admin`
 - [x] Подтвердить через Railway API состав service domains и custom domains для `midea-digital-contour-admin`
 - [x] Проверить статус custom domain `admin.midea-alba.uz`, включая DNS и certificate status
-- [ ] При необходимости устранить оставшиеся runtime-конфликты standalone auth и OAuth-следов перед финальной выдачей
+- [x] При необходимости устранить оставшиеся runtime-конфликты standalone auth и OAuth-следов перед финальной выдачей
 - [x] Выполнить API-перепривязку custom domain `admin.midea-alba.uz` в Railway и повторно проверить DNS, certificate status и HTTPS-ответ custom domain
 - [x] Обновить DNS-запись `admin.midea-alba.uz` на новый Railway target `h7tq7iiv.up.railway.app`
 - [ ] Повторно проверить Railway custom domain status для `admin.midea-alba.uz` после распространения DNS и подтвердить выпуск сертификата
+- [x] Найти уже сохранённые Railway токены и идентификаторы в песочнице и использовать их для финальной проверки binding/certificate status `admin.midea-alba.uz`
